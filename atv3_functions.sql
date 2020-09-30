@@ -82,22 +82,27 @@ END;
 motivo de internação, por exemplo, Crise Renal ou Infarto, etc., passando como parâmetro parte do motivo de 
 internação. Faça os tratamentos necessário*/
 
-CREATE TYPE resultado AS OBJECT ( 
-    res1 NUMBER(10), 
-    res2 VARCHAR2(50) 
+CREATE OR REPLACE TYPE resultado
+AS OBJECT
+(
+   motivo VARCHAR(6),
+   contagem NUMBER
 );
 
 
-CREATE OR REPLACE FUNCTION count_patients (reason IN internacao.MOTIVO%TYPE)
+CREATE OR REPLACE FUNCTION count_patients (reason IN VARCHAR2)
 RETURN resultado
-IS res resultado:= resultado(null, null);
+IS res resultado:=;
 BEGIN
-SELECT COUNT(DISTINCT i.NUM_INTERNACAO), i.MOTIVO INTO res.res1, res.res2
+
+SELECT  i.MOTIVO, COUNT(DISTINCT i.NUM_INTERNACAO) INTO res.motivo, res.contagem
 FROM internacao i 
 WHERE UPPER(i.MOTIVO) LIKE ('%'||UPPER(reason)||'%') AND
 i.SITUACAO_INTERNACAO = 'ATIVA'
 GROUP BY i.MOTIVO;
+
 RETURN res;
+
 EXCEPTION
 	WHEN NO_DATA_FOUND THEN 
 	RAISE_APPLICATION_ERROR (-20400,'Não foram encontrados pacientes com este motivo de internação');
