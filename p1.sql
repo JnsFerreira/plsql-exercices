@@ -62,28 +62,30 @@ END;
 motivo de internação, por exemplo, Crise Renal ou Infarto, etc., passando como parâmetro parte do motivo de 
 internação. Faça os tratamentos necessário*/
 
-CREATE OR REPLACE TYPE resultado
-AS OBJECT
-(
-   motivo VARCHAR(6),
-   contagem NUMBER
-);
+DROP TYPE t_type FORCE ;
+CREATE OR REPLACE TYPE t_type AS OBJECT
+(quant INTEGER,
+motivo VARCHAR2(40));
+
+CREATE OR REPLACE TYPE t_table AS TABLE OF t_type ;
 
 
-CREATE OR REPLACE FUNCTION count_patients (reason IN VARCHAR2)
-RETURN resultado
-IS res resultado:=;
+CREATE OR REPLACE FUNCTION count_patients (reason IN internacao.MOTIVO%TYPE)
+RETURN t_table IS res t_table := t_table() ;
 BEGIN
-
-SELECT  i.MOTIVO, COUNT(DISTINCT i.NUM_INTERNACAO) INTO res.motivo, res.contagem
-FROM internacao i 
-WHERE UPPER(i.MOTIVO) LIKE ('%'||UPPER(reason)||'%') AND
-i.SITUACAO_INTERNACAO = 'ATIVA'
-GROUP BY i.MOTIVO;
-
+FOR k IN(SELECT  i.MOTIVO AS motivo, COUNT(i.NUM_INTERNACAO) AS quantidade
+        FROM internacao i 
+        WHERE UPPER(i.MOTIVO) LIKE ('%'||UPPER(reason)||'%') AND
+        i.SITUACAO_INTERNACAO = 'ATIVA'
+        GROUP BY i.MOTIVO) LOOP
+        
+res.EXTEND();
+res(res.count) := t_type(k.quantidade, k.motivo) ;
+END LOOP ;
 RETURN res;
-
-EXCEPTION
-	WHEN NO_DATA_FOUND THEN 
-	RAISE_APPLICATION_ERROR (-20400,'Não foram encontrados pacientes com este motivo de internação');
 END;
+
+
+
+SELECT count_patients('FRATURA')
+FROM dual;
