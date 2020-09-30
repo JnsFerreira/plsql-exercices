@@ -86,6 +86,5 @@ RETURN res;
 END;
 
 
-
-SELECT count_patients('FRATURA')
-FROM dual;
+--testing
+SELECT * FROM TABLE (count_patients ('fratura'));
