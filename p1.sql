@@ -55,8 +55,8 @@ END;
 
 
 /*3- Implemente um controle para registrar em log as aplicações de medicamento (dar o remédio).*/
-DROP TABLE remedio_aplicacao_log;
-CREATE TABLE remedio_aplicacao_log
+drop table remedio_aplicacao_log;
+create table remedio_aplicacao_log
 (
     id_log number(10) not null,
     id_aplicacao number(10) not null,
@@ -65,9 +65,8 @@ CREATE TABLE remedio_aplicacao_log
     CONSTRAINT remedio_aplicacao_log_pk Primary Key (id_log)
 );
 
-CREATE SEQUENCE remedio_aplicacao_log_seq START WITH 1;
 
-CREATE OR REPLACE TRIGGER tr_aplicacao_seq_log_id 
+CREATE OR REPLACE TRIGGER remedio_aplicacao_log_seq 
 BEFORE INSERT ON remedio_aplicacao_log 
 FOR EACH ROW
 
@@ -77,41 +76,29 @@ BEGIN
   FROM   dual;
 END;
 
+
 CREATE OR REPLACE TRIGGER dar_remedio_log
 AFTER INSERT OR UPDATE OR DELETE ON aplicacao 
 FOR EACH ROW
 BEGIN
-
-IF INSERTING THEN
-    INSERT INTO remedio_aplicacao_log VALUES (remedio_aplicacao_log_seq.nextval
-    ,:NEW.NUM_APLICACAO
-    ,('INSERINDO NA TABELA APLICACAO - NUM_PRESCRICAO: '||TO_CHAR(:NEW.NUM_PRESCRICAO)||
-        ' - DT_HORA_APLICACAO: '||TO_CHAR(:NEW.DT_HORA_APLICACAO)||
-        ' - APLICADO_POR: '||TO_CHAR(:NEW.APLICADO_POR)||
-        ' - DOSE_APLICADA: '||TO_CHAR(:NEW.DOSE_APLICADA))
-    ,current_timestamp);
-ELSIF UPDATING then
-    INSERT INTO remedio_aplicacao_log VALUES (remedio_aplicacao_log_seq.nextVal
-    ,:OLD.NUM_APLICACAO
-    ,('ATUALIZANDO A TABELA APLICACAO - NUM_PRESCRICAO_ANTERIOR: '||TO_CHAR(:OLD.NUM_PRESCRICAO)||
-        ' - NUM_PRESCRICAO_NOVO: '||TO_CHAR(:NEW.NUM_PRESCRICAO)||
-        ' - DT_HORA_APLICACAO_ANTERIOR: '||TO_CHAR(:OLD.DT_HORA_APLICACAO)||
-        ' - DT_HORA_APLICACAO_NOVO: '||TO_CHAR(:NEW.DT_HORA_APLICACAO)||
-        ' - APLICADO_POR_ANTERIOR: '||TO_CHAR(:OLD.APLICADO_POR)||
-        ' - APLICADO_POR_NOVO: '||TO_CHAR(:NEW.APLICADO_POR)||
-        ' - DOSE_APLICADA_ANTERIOR: '||TO_CHAR(:OLD.DOSE_APLICADA)
-        ' - DOSE_APLICADA_NOVO: '||TO_CHAR(:NEW.DOSE_APLICADA))
-    ,current_timestamp);
-ELSIF DELETING THEN
-    INSERT INTO  remedio_aplicacao_log VALUES (remedio_aplicacao_log_seq.nextVal
-    ,:OLD.NUM_APLICACAO
-    ,('DELETANDO LINHA NA TABELA APLICACAO - NUM_PRESCRICAO: '||TO_CHAR(:OLD.NUM_PRESCRICAO)||
-        ' - DT_HORA_APLICACAO: '||TO_CHAR(:OLD.DT_HORA_APLICACAO)||
-        ' - APLICADO_POR: '||TO_CHAR(:OLD.APLICADO_POR)||
-        ' - DOSE_APLICADA: '||TO_CHAR(:OLD.DOSE_APLICADA))
-    ,current_timestamp);
-END IF;
+    IF INSERTING THEN
+        INSERT INTO remedio_aplicacao_log VALUES (remedio_aplicacao_log_seq.nextval,:NEW.NUM_APLICACAO,'INSERINDO NA TABELA APLICACAO - NUM_PRESCRICAO: '||TO_CHAR(:NEW.NUM_PRESCRICAO)||' - DT_HORA_APLICACAO: '||TO_CHAR(:NEW.DT_HORA_APLICACAO)||' - APLICADO_POR: '||TO_CHAR(:NEW.APLICADO_POR)||' - DOSE_APLICADA: '||TO_CHAR(:NEW.DOSE_APLICADA), current_timestamp);
+    ELSIF UPDATING THEN
+        INSERT INTO remedio_aplicacao_log VALUES (remedio_aplicacao_log_seq.nextVal,:OLD.NUM_APLICACAO,'ATUALIZANDO A TABELA APLICACAO - NUM_PRESCRICAO_ANTERIOR: '||TO_CHAR(:OLD.NUM_PRESCRICAO)||' - NUM_PRESCRICAO_NOVO: '||TO_CHAR(:NEW.NUM_PRESCRICAO)||' - DT_HORA_APLICACAO_ANTERIOR: '||TO_CHAR(:OLD.DT_HORA_APLICACAO)||' - DT_HORA_APLICACAO_NOVO: '||TO_CHAR(:NEW.DT_HORA_APLICACAO)||' - APLICADO_POR_ANTERIOR: '||TO_CHAR(:OLD.APLICADO_POR)||' - APLICADO_POR_NOVO: '||TO_CHAR(:NEW.APLICADO_POR)||' - DOSE_APLICADA_ANTERIOR: '||TO_CHAR(:OLD.DOSE_APLICADA)||' - DOSE_APLICADA_NOVO: '||TO_CHAR(:NEW.DOSE_APLICADA),current_timestamp);
+    ELSIF DELETING THEN
+        INSERT INTO remedio_aplicacao_log VALUES (remedio_aplicacao_log_seq.nextVal,:OLD.NUM_APLICACAO,'DELETANDO LINHA NA TABELA APLICACAO - NUM_PRESCRICAO: '||TO_CHAR(:OLD.NUM_PRESCRICAO)||' - DT_HORA_APLICACAO: '||TO_CHAR(:OLD.DT_HORA_APLICACAO)||' - APLICADO_POR: '||TO_CHAR(:OLD.APLICADO_POR)||' - DOSE_APLICADA: '||TO_CHAR(:OLD.DOSE_APLICADA),current_timestamp);
+    END IF;
 END;
+
+/*
+-- AREA DE TESTE
+select * from aplicacao;
+
+insert into aplicacao VALUES
+(aplicacao_seq.NextVal, 205, current_timestamp, 'Joninha',10);
+
+select * from remedio_aplicacao_log;
+*/
 
 
 /*4- Implemente uma função que retorne a quantidade de pacientes internados atualmente para um determinado 
