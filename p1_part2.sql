@@ -69,3 +69,64 @@ END;
 validação
 select * FROM TABLE (retorna_motivos_quantidade_internacoes(current_timestamp - 1000, current_timestamp))
 */
+	
+			    
+/*
+7 – Elabore uma procedure com cursor para gerar um extrato dos exames médicos de uma determinada internação
+no formato abaixo:
+Internação : 3029 WAGNER DINIZ - DORES FORTES NO PEITO- Dr. ANTONIO SOUZA
+Período: 24/04/2020 18:58 A 10/09/2020 18:58
+----------------------------------------------------------------------------------------------------
+Exame Data Hora Exame Tipo Laudo Valor Exame Total
+50 25/04/2020 18:58 SANGUE Normal $55,00 $55,00
+52 06/06/2020 14:18 - GLICEMIA Normal $55,00 $110,00
+51 09/09/2020 11:22 GLICEMIA Normal $55,00 $165,00
+*/
+
+
+CREATE OR REPLACE PROCEDURE extrato_exames_medicos(cod_internacao IN internacao.NUM_INTERNACAO%TYPE)
+IS
+   motivo internacao.MOTIVO%TYPE;
+   nome_paciente PACIENTE.NOME_PAC%TYPE;
+   nome_medico MEDICO.NOME_MED%TYPE;
+   data_hora_entrada internacao.DT_HORA_ENTRADA%TYPE;
+   data_hora_saida internacao.DT_HORA_SAIDA%TYPE;
+   total_valor NUMBER;
+   total_linhas NUMBER;
+   
+   CURSOR extrato_exames IS
+           Select EM.NUM_EXAME as EXAME,  EM.DT_HORA_EXAME as DATA_HORA, TE.TIPO_EXAME as TIPO, EM.LAUDO_EXAME as LAUDO, TE.CUSTO_EXAME AS VALOR
+        FROM exame_med EM
+            JOIN tipo_exame TE on (EM.COD_TIPO_EXAME = TE.COD_TIPO_EXAME)
+        WHERE EM.NUM_INTERNACAO = cod_internacao ;
+BEGIN
+    total_valor := 0;
+    SELECT p.NOME_PAC, i.MOTIVO, m.NOME_MED, i.DT_HORA_ENTRADA, i.DT_HORA_SAIDA into nome_paciente, motivo, nome_medico, data_hora_entrada, data_hora_saida
+    FROM INTERNACAO i
+        JOIN PACIENTE p on (i.COD_PACIENTE = p.COD_PACIENTE)
+        JOIN MEDICO m on (i.CRM_RESPONSAVEL = m.CRM)
+    WHERE i.NUM_INTERNACAO = cod_internacao;
+    
+    DBMS_OUTPUT.PUT_LINE('Internação: '||TO_CHAR(cod_internacao)||' - '||TO_CHAR(nome_paciente)||' - '||TO_CHAR(motivo)||' - Dr.'||TO_CHAR(nome_medico));
+    DBMS_OUTPUT.PUT_LINE('Período: '||TO_CHAR(data_hora_entrada, 'DD-MM-YYYY')||' A '||TO_CHAR(data_hora_saida, 'DD-MM-YYYY'));
+    DBMS_OUTPUT.PUT_LINE('------------------------------------------------------------------------------------------------------------------------');
+    DBMS_OUTPUT.PUT_LINE('Exame - Data Hora Exame - Tipo - Laudo - Valor Exame - Total');
+
+
+    FOR record IN extrato_exames
+    LOOP
+        total_valor := total_valor + record.VALOR;
+        DBMS_OUTPUT.PUT_LINE(TO_CHAR(record.EXAME)||'  -  '||TO_CHAR(record.DATA_HORA, 'DD-MM-YYYY')||'  -  '||TO_CHAR(record.TIPO)||'  -  '||TO_CHAR(record.LAUDO)||'  -  R$ '||TO_CHAR(record.VALOR)||',00 -  R$'
+        ||TO_CHAR(total_valor)||',00');
+    END LOOP;
+    
+    
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN 
+	RAISE_APPLICATION_ERROR (-20035,'não há registro de exames para esta internação');
+END;
+
+/*
+TESTE
+execute extrato_exames_medicos(3003)
+*/
