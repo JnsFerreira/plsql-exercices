@@ -130,3 +130,158 @@ END;
 TESTE
 execute extrato_exames_medicos(3003)
 */
+/*
+8- Elabore uma procedure com cursor FETCH para gerar um extrato completo de uma determinada internação no
+formato abaixo:
+Internacao : 3006-Paciente MARIA LUCIEIDE - PRE NATAL-Dr. TADASHI KOBAIASH
+Período : 07/05/2020 04:58 A 10/05/2020 06:58 – Leito : SIMPLES-ENFERMARIA
+Total Diarias: $9800,00
+Total Servicos Medicos : $10290,00
+---------------------------------------------------------------------------------------------------
+Aplicacao-Data Hora Aplicacao - Medicamento - Responsavel Aplicacao- Dose Aplicada - Custo Dose
+41 08/05/2020 11:52 NOVALGINA Tiao 7 $10,00
+43 09/05/2020 17:12 NOVALGINA Mirtes 5 $10,00
+--------------------------------------------------------------------------------------------------
+Total Medicamentos : $4,41
+---------------------------------------------------------------------------------------------------
+Exame-Data Hora Realizacao - Tipo Exame - Laudo - Custo Exame
+70 09/05/2020 17:33 RAIO X TORAX Normal $55,00
+71 10/05/2020 08:33 URINA Normal $55,00
+----------------------------------------------------------------------------------------------------
+Total Exames : $110,00
+----------------------------------------------------------------------------------------------------
+Total Internacao : $20204,41
+*/
+
+
+CREATE OR REPLACE PROCEDURE extrato_completo_internacao(cod_internacao IN internacao.NUM_INTERNACAO%TYPE)
+IS
+   motivo internacao.MOTIVO%TYPE;
+   nome_paciente PACIENTE.NOME_PAC%TYPE;
+   nome_medico MEDICO.NOME_MED%TYPE;
+   data_hora_entrada internacao.DT_HORA_ENTRADA%TYPE;
+   data_hora_saida internacao.DT_HORA_SAIDA%TYPE;
+   total_valor_diarias NUMBER(15,0);
+   total_valor_serv_medic NUMBER(15,0);
+   total_valor_exames NUMBER(15,0);
+   total_valor_aplicacoes NUMBER(15,0);
+   total_valor NUMBER(15,0);
+
+	
+	CURSOR extrato_aplicacao_med is
+		SELECT *
+		FROM MEDICAMENTO m
+			JOIN PRESCRICAO p on (p.COD_MEDICAMENTO =  m.COD_MEDICAMENTO)
+			JOIN APLICACAO a on (a.NUM_PRESCRICAO = p.NUM_PRESCRICAO)
+		WHERE p.NUM_INTERNACAO = cod_internacao;
+	aplicacao_rec extrato_aplicacao_med%ROWTYPE;
+		
+	   
+    CURSOR extrato_exames IS
+        SELECT *
+        FROM exame_med EM
+            JOIN tipo_exame TE on (EM.COD_TIPO_EXAME = TE.COD_TIPO_EXAME)
+        WHERE EM.NUM_INTERNACAO = cod_internacao;
+	exame_rec extrato_exames%ROWTYPE;
+	
+BEGIN
+    total_valor_aplicacoes := 0;
+	total_valor_exames := 0;
+	total_valor := 0;
+	
+    SELECT p.NOME_PAC, i.MOTIVO, m.NOME_MED, i.DT_HORA_ENTRADA, i.DT_HORA_SAIDA into nome_paciente, motivo, nome_medico, data_hora_entrada, data_hora_saida
+    FROM INTERNACAO i
+        JOIN PACIENTE p on (i.COD_PACIENTE = p.COD_PACIENTE)
+        JOIN MEDICO m on (i.CRM_RESPONSAVEL = m.CRM)
+    WHERE i.NUM_INTERNACAO = cod_internacao;
+    
+    DBMS_OUTPUT.PUT_LINE('Internação: '||TO_CHAR(cod_internacao)||' - '||TO_CHAR(nome_paciente)||' - '||TO_CHAR(motivo)||' - Dr.'||TO_CHAR(nome_medico));
+    DBMS_OUTPUT.PUT_LINE('Período: '||TO_CHAR(data_hora_entrada, 'DD-MM-YYYY')||' A '||TO_CHAR(data_hora_saida, 'DD-MM-YYYY'));
+	
+	
+	
+	/*calculo diarias*/
+	
+	SELECT DISTINCT (extract(day from (i.DT_HORA_SAIDA-i.DT_HORA_ENTRADA)) * l.CUSTO_DIARIA) INTO total_valor_diarias
+				FROM INTERNACAO i
+					JOIN LEITO l on (l.NUM_QTO = i.NUM_QTO)
+				WHERE i.NUM_INTERNACAO = cod_internacao
+				AND l.NUM_LEITO = i.NUM_LEITO
+				AND DT_HORA_SAIDA IS NOT NULL;
+				
+	IF total_valor_diarias >= 0 AND total_valor_diarias < 1 THEN 
+	        SELECT DISTINCT l.CUSTO_DIARIA INTO total_valor_diarias
+			FROM INTERNACAO i
+				JOIN LEITO l on (l.NUM_QTO = i.NUM_QTO)
+			WHERE i.NUM_INTERNACAO = cod_internacao
+			AND l.NUM_LEITO = i.NUM_LEITO
+			AND DT_HORA_SAIDA IS NOT NULL;
+	END IF;
+	
+	IF 	total_valor_diarias is not null THEN
+		DBMS_OUTPUT.PUT_LINE('Total Diarias: $'||TO_CHAR(TO_NUMBER(total_valor_diarias))||',00');
+	END IF;				
+    
+	
+	
+	/*calculo valor serviço medico*/
+	
+	
+	SELECT DISTINCT (extract(day from (i.DT_HORA_ALTA-i.DT_HORA_ENTRADA)) * e.CUSTO_SERVICO) INTO total_valor_serv_medic
+				FROM INTERNACAO i
+					JOIN MEDICO_EFETIVO me on (me.CRM_EFETIVO = i.CRM_RESPONSAVEL)
+					JOIN ESPECIALIDADE e on (e.COD_ESP = me.COD_ESPEC)
+				WHERE i.NUM_INTERNACAO = cod_internacao 
+				AND DT_HORA_ALTA IS NOT NULL;
+
+    IF 	total_valor_serv_medic is not null THEN
+		DBMS_OUTPUT.PUT_LINE('Total Serviço Médico: $'||TO_CHAR(total_valor_serv_medic)||',00');
+	END IF;
+  
+  /*APLICACAO EXTRATO*/
+    DBMS_OUTPUT.PUT_LINE('------------------------------------------------------------------------------------------------------------------------');
+    DBMS_OUTPUT.PUT_LINE('Aplicacao - Data Hora Aplicacao - Medicamento - Responsavel Aplicacao - Dose Aplica - Custo Dose');
+
+
+    OPEN extrato_aplicacao_med;
+    LOOP
+		FETCH extrato_aplicacao_med INTO aplicacao_rec;
+		EXIT WHEN extrato_aplicacao_med%NOTFOUND;
+        DBMS_OUTPUT.PUT_LINE(TO_CHAR(aplicacao_rec.NUM_APLICACAO)||'  -  '||TO_CHAR(aplicacao_rec.DT_HORA_APLICACAO, 'DD-MM-YYYY hh:mm')||'  -  '||TO_CHAR(aplicacao_rec.NOME_MEDICAMENTO)||'  -  '||TO_CHAR(aplicacao_rec.DOSE_APLICADA)||'  -  R$ '||TO_CHAR(aplicacao_rec.CUSTO_DOSE)||',00');
+		total_valor_aplicacoes := total_valor_aplicacoes + ((aplicacao_rec.CUSTO_DOSE / aplicacao_rec.DOSAGEM) * aplicacao_rec.DOSE_APLICADA);
+    END LOOP;
+	CLOSE extrato_aplicacao_med;
+
+    DBMS_OUTPUT.PUT_LINE('------------------------------------------------------------------------------------------------------------------------');
+    DBMS_OUTPUT.PUT_LINE('Total em aplicacoes: $'||TO_CHAR(total_valor_aplicacoes)||',00');
+	
+  /*EXAMES EXTRATO*/
+    DBMS_OUTPUT.PUT_LINE('------------------------------------------------------------------------------------------------------------------------');
+    DBMS_OUTPUT.PUT_LINE('Exame - Data Hora Exame - Tipo - Laudo - Valor Exame - Total');
+
+	OPEN extrato_exames;
+    LOOP
+		FETCH extrato_exames INTO exame_rec;
+		EXIT WHEN extrato_exames%NOTFOUND;
+        DBMS_OUTPUT.PUT_LINE(TO_CHAR(exame_rec.NUM_EXAME)||'  -  '||TO_CHAR(exame_rec.DT_HORA_EXAME	, 'DD-MM-YYYY hh:mm')||'  -  '||TO_CHAR(exame_rec.TIPO_EXAME)||'  -  '||TO_CHAR(exame_rec.LAUDO_EXAME)||'  -  R$ '||TO_CHAR(exame_rec.CUSTO_EXAME)||',00');
+        total_valor_exames := total_valor_exames + exame_rec.CUSTO_EXAME;
+    END LOOP;
+	CLOSE extrato_exames;
+
+	DBMS_OUTPUT.PUT_LINE('------------------------------------------------------------------------------------------------------------------------');
+    DBMS_OUTPUT.PUT_LINE('Total em exames: $'||TO_CHAR(total_valor_exames)||',00');
+    DBMS_OUTPUT.PUT_LINE('------------------------------------------------------------------------------------------------------------------------');
+	
+	total_valor := total_valor_aplicacoes + total_valor_exames + total_valor_diarias + total_valor_serv_medic;
+	
+    DBMS_OUTPUT.PUT_LINE('Total Internação: $'||TO_CHAR(total_valor)||',00');
+    DBMS_OUTPUT.PUT_LINE('------------------------------------------------------------------------------------------------------------------------');
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN 
+	RAISE_APPLICATION_ERROR (-20035,'Não encontramos dados suficientes desta internação para emissão de extrato');
+END;
+
+/*
+TESTE
+EXECUTE extrato_completo_internacao(3003)
+*/
